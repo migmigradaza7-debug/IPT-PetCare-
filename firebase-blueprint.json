@@ -1,0 +1,202 @@
+{
+  "entities": {
+    "Pet": {
+      "title": "Pet",
+      "description": "A companion animal profile owned by an authenticated user.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase UID of the pet owner."
+        },
+        "name": {
+          "type": "string",
+          "description": "Pet's display name (1-60 chars)."
+        },
+        "species": {
+          "type": "string",
+          "enum": ["DOG", "CAT", "BIRD", "RABBIT", "OTHER"],
+          "description": "Animal species classification."
+        },
+        "breed": {
+          "type": "string",
+          "description": "Pet breed or mix (1-60 chars)."
+        },
+        "ageYears": {
+          "type": "integer",
+          "description": "Whole years of pet age (0-50)."
+        },
+        "ageMonths": {
+          "type": "integer",
+          "description": "Additional months of pet age (0-11)."
+        },
+        "weightKg": {
+          "type": "number",
+          "description": "Optional pet weight in kilograms (> 0 and <= 500)."
+        },
+        "microchipId": {
+          "type": "string",
+          "description": "Optional microchip or clinic registration ID (<= 50 chars)."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional general care notes (<= 500 chars)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server-generated creation timestamp via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server-generated last-updated timestamp via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "userId",
+        "name",
+        "species",
+        "breed",
+        "ageYears",
+        "ageMonths",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "VaccinationRecord": {
+      "title": "VaccinationRecord",
+      "description": "An immunization or booster record linked to a user's pet.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase UID of the record owner."
+        },
+        "petId": {
+          "type": "string",
+          "description": "Document ID of the parent pet under users/{userId}/pets."
+        },
+        "vaccineName": {
+          "type": "string",
+          "description": "Name of the vaccine or booster (1-80 chars)."
+        },
+        "administeredDateEpochMs": {
+          "type": "integer",
+          "description": "Epoch milliseconds when the vaccine was administered or scheduled."
+        },
+        "nextDueDateEpochMs": {
+          "type": "integer",
+          "description": "Optional epoch milliseconds for the next booster due date."
+        },
+        "clinicOrVet": {
+          "type": "string",
+          "description": "Optional veterinary clinic or doctor name (<= 80 chars)."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional vaccine batch or reaction notes (<= 500 chars)."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["SCHEDULED", "COMPLETED"],
+          "description": "Current completion status of the vaccination."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server-generated creation timestamp via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server-generated last-updated timestamp via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "userId",
+        "petId",
+        "vaccineName",
+        "administeredDateEpochMs",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "HealthRecord": {
+      "title": "HealthRecord",
+      "description": "A veterinary visit, medication, allergy, weight, or wellness note for a pet.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase UID of the record owner."
+        },
+        "petId": {
+          "type": "string",
+          "description": "Document ID of the parent pet under users/{userId}/pets."
+        },
+        "title": {
+          "type": "string",
+          "description": "Short summary title of the health record (1-80 chars)."
+        },
+        "category": {
+          "type": "string",
+          "enum": ["CHECKUP", "MEDICATION", "ALLERGY", "WEIGHT", "NOTE"],
+          "description": "Health record category."
+        },
+        "recordDateEpochMs": {
+          "type": "integer",
+          "description": "Epoch milliseconds when the health event occurred."
+        },
+        "vetName": {
+          "type": "string",
+          "description": "Optional veterinarian or clinic name (<= 80 chars)."
+        },
+        "details": {
+          "type": "string",
+          "description": "Optional detailed health notes or dosage instructions (<= 1000 chars)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server-generated creation timestamp via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server-generated last-updated timestamp via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "userId",
+        "petId",
+        "title",
+        "category",
+        "recordDateEpochMs",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/pets/{petId}": {
+      "schema": {
+        "$ref": "#/entities/Pet"
+      },
+      "description": "User-owned pet profiles."
+    },
+    "/users/{userId}/vaccinations/{vaccinationId}": {
+      "schema": {
+        "$ref": "#/entities/VaccinationRecord"
+      },
+      "description": "User-owned vaccination records linked to a pet."
+    },
+    "/users/{userId}/healthRecords/{recordId}": {
+      "schema": {
+        "$ref": "#/entities/HealthRecord"
+      },
+      "description": "User-owned health and veterinary records linked to a pet."
+    }
+  }
+}

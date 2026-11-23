@@ -1,0 +1,139 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Global Primitives ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Entity Validation Helpers ---
+    function isValidPet(data, userId) {
+      return data.userId is string &&
+             data.userId == userId &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 60 &&
+             data.species is string && data.species in ['DOG', 'CAT', 'BIRD', 'RABBIT', 'OTHER'] &&
+             data.breed is string && data.breed.size() >= 1 && data.breed.size() <= 60 &&
+             data.ageYears is int && data.ageYears >= 0 && data.ageYears <= 50 &&
+             data.ageMonths is int && data.ageMonths >= 0 && data.ageMonths <= 11 &&
+             (!('weightKg' in data) || (data.weightKg is number && data.weightKg > 0 && data.weightKg <= 500)) &&
+             (!('microchipId' in data) || (data.microchipId is string && data.microchipId.size() <= 50)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 500)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidVaccination(data, userId) {
+      return data.userId is string &&
+             data.userId == userId &&
+             isValidId(data.petId) &&
+             data.vaccineName is string && data.vaccineName.size() >= 1 && data.vaccineName.size() <= 80 &&
+             data.administeredDateEpochMs is int && data.administeredDateEpochMs > 0 &&
+             (!('nextDueDateEpochMs' in data) || (data.nextDueDateEpochMs is int && data.nextDueDateEpochMs > 0)) &&
+             (!('clinicOrVet' in data) || (data.clinicOrVet is string && data.clinicOrVet.size() <= 80)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 500)) &&
+             data.status is string && data.status in ['SCHEDULED', 'COMPLETED'] &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidHealthRecord(data, userId) {
+      return data.userId is string &&
+             data.userId == userId &&
+             isValidId(data.petId) &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 80 &&
+             data.category is string && data.category in ['CHECKUP', 'MEDICATION', 'ALLERGY', 'WEIGHT', 'NOTE'] &&
+             data.recordDateEpochMs is int && data.recordDateEpochMs > 0 &&
+             (!('vetName' in data) || (data.vetName is string && data.vetName.size() <= 80)) &&
+             (!('details' in data) || (data.details is string && data.details.size() <= 1000)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    // --- Collection Rules ---
+    match /users/{userId}/pets/{petId} {
+      allow list: if isOwner(userId);
+      allow get: if isOwner(userId) && isValidId(petId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(petId) &&
+                       incoming().keys().hasAll(['userId', 'name', 'species', 'breed', 'ageYears', 'ageMonths', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'name', 'species', 'breed', 'ageYears', 'ageMonths', 'weightKg', 'microchipId', 'notes', 'createdAt', 'updatedAt']) &&
+                       isValidPet(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(petId) &&
+                       isValidPet(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['name', 'species', 'breed', 'ageYears', 'ageMonths', 'weightKg', 'microchipId', 'notes', 'updatedAt']);
+
+      allow delete: if isOwner(userId) && isValidId(petId);
+    }
+
+    match /users/{userId}/vaccinations/{vaccinationId} {
+      allow list: if isOwner(userId);
+      allow get: if isOwner(userId) && isValidId(vaccinationId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(vaccinationId) &&
+                       incoming().keys().hasAll(['userId', 'petId', 'vaccineName', 'administeredDateEpochMs', 'status', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'petId', 'vaccineName', 'administeredDateEpochMs', 'nextDueDateEpochMs', 'clinicOrVet', 'notes', 'status', 'createdAt', 'updatedAt']) &&
+                       isValidVaccination(incoming(), userId) &&
+                       exists(/databases/$(database)/documents/users/$(userId)/pets/$(incoming().petId));
+
+      allow update: if isOwner(userId) &&
+                       isValidId(vaccinationId) &&
+                       isValidVaccination(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().petId == existing().petId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['vaccineName', 'administeredDateEpochMs', 'nextDueDateEpochMs', 'clinicOrVet', 'notes', 'status', 'updatedAt']);
+
+      allow delete: if isOwner(userId) && isValidId(vaccinationId);
+    }
+
+    match /users/{userId}/healthRecords/{recordId} {
+      allow list: if isOwner(userId);
+      allow get: if isOwner(userId) && isValidId(recordId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(recordId) &&
+                       incoming().keys().hasAll(['userId', 'petId', 'title', 'category', 'recordDateEpochMs', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'petId', 'title', 'category', 'recordDateEpochMs', 'vetName', 'details', 'createdAt', 'updatedAt']) &&
+                       isValidHealthRecord(incoming(), userId) &&
+                       exists(/databases/$(database)/documents/users/$(userId)/pets/$(incoming().petId));
+
+      allow update: if isOwner(userId) &&
+                       isValidId(recordId) &&
+                       isValidHealthRecord(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().petId == existing().petId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['title', 'category', 'recordDateEpochMs', 'vetName', 'details', 'updatedAt']);
+
+      allow delete: if isOwner(userId) && isValidId(recordId);
+    }
+  }
+}
